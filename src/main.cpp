@@ -100,20 +100,21 @@ void tarefa_1(void * parameters)
   volatile float temp_sum = 0;
   volatile int temp_ind = 0;
   sem_media = xSemaphoreCreateBinary();
+
 	for(;;)
 	{
-		temperature = my_sensor.readTemperature();
+		temperature = my_sensor.readTemperature();        // Leitura do Sensor
 		temp_ind ++;
-		temp_sum = temp_sum + temperature;
+		temp_sum = temp_sum + temperature;                // Soma 631 temps (20min)
     Serial.print("Temperatura: ");
     Serial.println(temperature);
-		if(temp_ind == 6){
-			temp_med = temp_sum/temp_ind;
+		if(temp_ind == 631){
+			temp_med = temp_sum/temp_ind;                   // Media de temperatura a cada 20m (631*1.9s)
 			temp_ind = 0;
 			temp_sum = 0;
-      xSemaphoreGive(sem_media);
+      xSemaphoreGive(sem_media);                      // Libera para a funcao que grava
     Serial.print("Temperatura Media: ");
-    Serial.println(temp_med);
+    Serial.println(temp_med);                         // So pra manter informado no Serial
 		} 
 		vTaskDelay(1900);
 	}
@@ -122,24 +123,24 @@ void tarefa_1(void * parameters)
 
 void tarefa_2(void * parameters){
   for(;;){
-		if(WiFi.status() == WL_CONNECTED){
+		if(WiFi.status() == WL_CONNECTED){              // Verifica se o Wifi Ainda esta conectado
       Serial.println("[WIFI] Still Connected");
-			vTaskDelay(31000 / portTICK_PERIOD_MS);
-			continue;
+			vTaskDelay(31000 / portTICK_PERIOD_MS);       // Periodo de repeticao da verificacao
+			continue;                                     // Ignora o restante da funcao
 		}
 		Serial.println("WiFI Connecting");
-		WiFi.begin(WIFI_NETWORK, WIFI_PASSWORD);
+		WiFi.begin(WIFI_NETWORK, WIFI_PASSWORD);        // Caso tenha perdido a conexao, rotina de reconeccao
 
-		unsigned long startAttemptTime = millis(); // contagem p/ timeout
+		unsigned long startAttemptTime = millis();      // contagem p/ timeout
 		
     while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime < WIFI_TIMEOUT_MS) ){}
 		if(WiFi.status() != WL_CONNECTED){
-            Serial.println("[WIFI] FAILED");
+            Serial.println("[WIFI] FAILED");        // TimedOut ao tentar reconectar
             vTaskDelay(21000 / portTICK_PERIOD_MS);
 			  continue;
         }
     
-    Serial.println("[WIFI] Connected: " + WiFi.localIP());
+    Serial.println("[WIFI] Connected: " + WiFi.localIP());   // Reconectou
 	}
 }
 
@@ -200,18 +201,21 @@ void tarefa_4(void * parameters){
     }
   
 
-  volatile int tempo = 0; // tempo que foi retirado o dado
+  volatile int tempo = 0;         // tempo de execucao que foi obtido o dado (min)
   File file;
   
   for(;;){
-      if(xSemaphoreTake(sem_media, portMAX_DELAY)){
-        Serial.println("Entrei na tarefa de gravacao");
-        file = SPIFFS.open("/media.txt", "a");
-        file.print("[");
-        file.print(tempo);
-        file.print("]");
-        file.println(temp_med);
-        file.close();
+      if(xSemaphoreTake(sem_media, portMAX_DELAY)){       // Verifica disponibilidade do semaforo
+        Serial.println("Gravando...");
+        if(file = SPIFFS.open("/media.txt", "a")){        //Grava [0]24.45 ...
+          file.print("[");
+          file.print(tempo);
+          file.print("]");
+          file.println(temp_med);
+          file.close();
+          Serial.println("Gravacao Concluida");
+        }
+        else{Serial.println("Erro na abertura do arquivo");}        
         tempo += 20;
 
       }
