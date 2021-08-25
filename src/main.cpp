@@ -7,7 +7,7 @@
 
 #define WIFI_NETWORK "SUZANA 40 OI FIBRA 2G"
 #define  WIFI_PASSWORD "10081958"
-#define WIFI_TIMEOUT_MS 20000
+#define WIFI_TIMEOUT_MS 2000
 
 
 /*
@@ -128,21 +128,26 @@ void tarefa_1(void * parameters)
 
 
 void tarefa_2(void * parameters){
+  if(!WiFi.begin(WIFI_NETWORK, WIFI_PASSWORD)){
+    Serial.println("[WIFI] Erro na Inicializacao");
+  }
+  Serial.println("[WIFI] Modulo Inicializado");
+
   for(;;){
 		if(WiFi.status() == WL_CONNECTED){              // Verifica se o Wifi Ainda esta conectado
-      Serial.println("[WIFI] Still Connected");
+      Serial.println("[WIFI] Conectado");
 			vTaskDelay(31000 / portTICK_PERIOD_MS);       // Periodo de repeticao da verificacao
 			continue;                                     // Ignora o restante da funcao
 		}
-		Serial.println("WiFI Connecting");
+		Serial.println("[WIFI] Tentando Conectar");
 		WiFi.begin(WIFI_NETWORK, WIFI_PASSWORD);        // Caso tenha perdido a conexao, rotina de reconeccao
 
 		unsigned long startAttemptTime = millis();      // contagem p/ timeout
 		
     while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime < WIFI_TIMEOUT_MS) ){}
 		if(WiFi.status() != WL_CONNECTED){
-            Serial.println("[WIFI] FAILED");        // TimedOut ao tentar reconectar
-            vTaskDelay(21000 / portTICK_PERIOD_MS);
+            Serial.println("[WIFI] Falha na Conexao");        // TimedOut ao tentar reconectar
+            vTaskDelay(11000 / portTICK_PERIOD_MS);
 			  continue;
         }
     
@@ -156,7 +161,7 @@ void tarefa_3(void * parameters){
   for(;;){
     WiFiClient client = server.available();
     if (client) { 
-      Serial.println("New Client.");
+      Serial.println("[WEB-SV] New Client.");
       String currentLine = "";
       while (client.connected()) {
         if (client.available()) {
@@ -191,7 +196,7 @@ void tarefa_3(void * parameters){
         }
       }
       client.stop();
-      Serial.println("Client Disconnected.");
+      Serial.println("[WEB-SV] Client Disconnected.");
     }
 
   }
@@ -199,12 +204,10 @@ void tarefa_3(void * parameters){
 
 void tarefa_4(void * parameters){
 
-  if(SPIFFS.begin()){
-    Serial.println("Montou");
+  if(!SPIFFS.begin()){
+    Serial.println("[SPIFFS] Erro na Montagem"); 
   }
-  else{
-      Serial.println("Erro de mount");
-    }
+  Serial.println("[SPIFFS] Montado");
   
 
   volatile int tempo = 0;         // tempo de execucao que foi obtido o dado (min)
@@ -212,7 +215,7 @@ void tarefa_4(void * parameters){
   
   for(;;){
       if(xSemaphoreTake(sem_media, portMAX_DELAY)){       // Verifica disponibilidade do semaforo
-        Serial.println("Gravando...");
+        Serial.println("[SPIFFS] Gravando...");
         if(file = SPIFFS.open("/media.txt", "a")){        //Grava [0]24.45 ...
           file.print("[");
           file.print(tempo);
@@ -221,9 +224,9 @@ void tarefa_4(void * parameters){
           file.print("-");
           file.println(peak_buffer);
           file.close();
-          Serial.println("Gravacao Concluida");
+          Serial.println("[SPIFFS] Gravacao Concluida");
         }
-        else{Serial.println("Erro na abertura do arquivo");}        
+        else{Serial.println("[SPIFFS] Erro na abertura do arquivo");}        
         tempo += 20;
 
       }
