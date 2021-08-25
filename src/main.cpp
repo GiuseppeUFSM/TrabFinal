@@ -1,6 +1,4 @@
 #include <Arduino.h>
-
-//#include <FS.h>
 #include <DHT.h>
 #include <WiFi.h>
 #include <SPIFFS.h>
