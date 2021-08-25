@@ -29,6 +29,8 @@ void tarefa_2(void * parameters); //Conectar e Manter WIFI
 void tarefa_3(void * parameters); // Web Server
 void tarefa_4(void * parameters); // Salvar as medias, semaforo
 void tarefa_5(void * parameters); // Atualiza PWM pela temperatura
+void tarefa_6(void * parameters); // Salva a configuracao de fan
+void tarefa_7(void * parameters); //
 /*
 Task Handlers
 */
@@ -40,6 +42,10 @@ Globals
 volatile float temperature;
 volatile float temp_med = 0;
 volatile float peak_buffer = 0;
+  //curvas
+volatile int curva_ind = 2;
+int get_curva(void);
+
 
 /*
 DEFAULT FUNCTIONS
@@ -188,8 +194,15 @@ void tarefa_3(void * parameters){
               client.println("<!DOCTYPE HTML>");
               client.println("<html>");
               client.println("<meta http-equiv=\"refresh\" content=\"2\" >");
-              client.print(temperature);
+              client.print("Temperatura Atual: ");
+              client.println();
+              client.println(temperature);
+              client.println();
               client.println("<br />");
+              client.print("Click <a href=\"/O\">OFF</a> para desligar os Ventiladores.<br>");
+              client.print("Click <a href=\"/L\">MINIMUM</a> para ligar os Ventiladores com baixa rotacao.<br>");
+              client.print("Click <a href=\"/M\">GRADUAL</a> para os Ventiladores acelerarem conforme a temperatura.<br>");
+              client.print("Click <a href=\"/H\">MAX</a> para ligar os Ventiladores com rotacao maxima.<br>");
               client.println();
               client.println("</html>");
               break;
@@ -200,11 +213,18 @@ void tarefa_3(void * parameters){
           } else if (c != '\r') {
             currentLine += c;
           }
-          if (currentLine.endsWith("GET /H")) {
-            digitalWrite(LED, HIGH);
+          if (currentLine.endsWith("GET /O")) {
+            curva_ind = 0;
+            //digitalWrite(LED, HIGH);
           }
           if (currentLine.endsWith("GET /L")) {
-            digitalWrite(LED, LOW);
+            curva_ind = 1;
+          }
+          if (currentLine.endsWith("GET /M")) {
+            curva_ind = 2;
+          }
+          if (currentLine.endsWith("GET /H")) {
+            curva_ind = 3;
           }
         }
       }
@@ -257,17 +277,38 @@ void tarefa_5(void * parameters){
 
   for(;;){
 
-    intensity = curva()
-    if(temperature < 40){intensity = 0;  }
-    else{
-      if(temperature > 75){intensity = 255;}
-      else{
-      intensity = (7.22*temperature) - 286.5;
-      }
-    }
+    intensity = get_curva();
+    if(intensity > 255 || intensity < 0){intensity = 255;}
     ledcWrite(pwm_channel, intensity);
     Serial.print("[PWM]");
     Serial.println(intensity);
     vTaskDelay(5000);
+  }
+}
+
+
+
+int get_curva(void){
+  switch (curva_ind)
+  {
+  case 0:
+    return 0;
+    break;
+  case 1:
+    return 56;
+  case 2:
+    if(temperature < 40){return 0;}
+    else{
+      if(temperature > 75){return 255;}
+      else{
+      return ((7.22*temperature) - 286.5);
+      }    
+    }
+    break;
+  case 3:
+    return 255;
+  default:
+    return 255;
+    break;
   }
 }
