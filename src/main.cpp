@@ -17,6 +17,9 @@ HARDWARE
 DHT my_sensor(5, DHT22);
 //LED PINOUT
 int LED = 2;
+//pwm
+int pwm_pin = 27; // pino a ser usado para pwm 
+int pwm_channel = 0; // Canal de pwm
 
 /*
  * Prototipos das tarefas
@@ -25,7 +28,7 @@ void tarefa_1(void * parameters); //Ler temperatura
 void tarefa_2(void * parameters); //Conectar e Manter WIFI
 void tarefa_3(void * parameters); // Web Server
 void tarefa_4(void * parameters); // Salvar as medias, semaforo
-void tarefa_5(void * parameters); // Atualiza PWM
+void tarefa_5(void * parameters); // Atualiza PWM pela temperatura
 /*
 Task Handlers
 */
@@ -51,7 +54,7 @@ void setup() {
     "get_temperature", // nome humano
     1000, // tamanho da pilha
     NULL, // parameters
-    4,  //prioridade
+    5,  //prioridade
     NULL // handle
   );
 
@@ -79,6 +82,15 @@ xTaskCreate(
   NULL,
   3,
   NULL
+);
+xTaskCreatePinnedToCore(
+  tarefa_5,
+  "Atualiza PWM",
+  1000,
+  NULL,
+  4,
+  NULL,
+  1
 );
 
 }
@@ -118,9 +130,9 @@ void tarefa_1(void * parameters)
       temp_peak = 0;
 			temp_ind = 0;
 			temp_sum = 0;
+      Serial.print("Temperatura Media: ");
+      Serial.println(temp_med);                         // So pra manter informado no Serial
       xSemaphoreGive(sem_media);                      // Libera para a funcao que grava
-    Serial.print("Temperatura Media: ");
-    Serial.println(temp_med);                         // So pra manter informado no Serial
 		} 
 		vTaskDelay(1900);
 	}
@@ -232,4 +244,27 @@ void tarefa_4(void * parameters){
       }
     }
   
+}
+
+void tarefa_5(void * parameters){
+
+  int pwm_freq = 5000;
+  volatile int intensity = 0;
+
+  ledcSetup(pwm_channel, pwm_freq, 8);
+  ledcAttachPin(pwm_pin, pwm_channel);
+
+  for(;;){
+    if(temperature < 40){intensity = 0;  }
+    else{
+      if(temperature > 75){intensity = 255;}
+      else{
+      intensity = (7.22*temperature) - 286.5;
+      }
+    }
+    ledcWrite(pwm_channel, intensity);
+    Serial.print("[PWM]");
+    Serial.println(intensity);
+    vTaskDelay(5000);
+  }
 }
