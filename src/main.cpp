@@ -49,13 +49,14 @@ void setup() {
   Serial.begin(9600);
 
 
-  xTaskCreate(
+  xTaskCreatePinnedToCore(
     tarefa_1,  // nome pro os
     "get_temperature", // nome humano
     1000, // tamanho da pilha
     NULL, // parameters
     5,  //prioridade
-    NULL // handle
+    NULL, // handle
+    1
   );
 
 xTaskCreatePinnedToCore(
@@ -125,7 +126,7 @@ void tarefa_1(void * parameters)
     Serial.print("Temperatura: ");
     Serial.println(temperature);
 		if(temp_ind == 6){
-			temp_med = temp_sum/temp_ind;                   // Media de temperatura a cada 20m (631*1.9s)
+			temp_med = temp_sum/temp_ind;                   // Media de temperatura a cada 20m (480*2.5s)
       peak_buffer = temp_peak;                       // Carrega o buffer da temperatura de pico
       temp_peak = 0;
 			temp_ind = 0;
@@ -134,7 +135,7 @@ void tarefa_1(void * parameters)
       Serial.println(temp_med);                         // So pra manter informado no Serial
       xSemaphoreGive(sem_media);                      // Libera para a funcao que grava
 		} 
-		vTaskDelay(1900);
+		vTaskDelay(2500);
 	}
 }
 
@@ -159,7 +160,7 @@ void tarefa_2(void * parameters){
     while (WiFi.status() != WL_CONNECTED && (millis() - startAttemptTime < WIFI_TIMEOUT_MS) ){}
 		if(WiFi.status() != WL_CONNECTED){
             Serial.println("[WIFI] Falha na Conexao");        // TimedOut ao tentar reconectar
-            vTaskDelay(11000 / portTICK_PERIOD_MS);
+            vTaskDelay(21000 / portTICK_PERIOD_MS);
 			  continue;
         }
     
@@ -255,6 +256,8 @@ void tarefa_5(void * parameters){
   ledcAttachPin(pwm_pin, pwm_channel);
 
   for(;;){
+
+    intensity = curva()
     if(temperature < 40){intensity = 0;  }
     else{
       if(temperature > 75){intensity = 255;}
