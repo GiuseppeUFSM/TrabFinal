@@ -1,8 +1,9 @@
 #include <Arduino.h>
 
-
+//#include <FS.h>
 #include <DHT.h>
 #include <WiFi.h>
+#include <SPIFFS.h>
 
 
 
@@ -25,10 +26,11 @@ int LED = 2;
 void tarefa_1(void * parameters); //Ler temperatura
 void tarefa_2(void * parameters); //Conectar e Manter WIFI
 void tarefa_3(void * parameters); // Web Server
+void tarefa_4(void * parameters); // Salvar as medias, semaforo
 /*
 Task Handlers
 */
-
+xSemaphoreHandle sem_media = NULL;
 
 /*
 Globals
@@ -49,7 +51,7 @@ void setup() {
     "get_temperature", // nome humano
     1000, // tamanho da pilha
     NULL, // parameters
-    3,  //prioridade
+    4,  //prioridade
     NULL // handle
   );
 
@@ -70,11 +72,20 @@ xTaskCreate(
   1,
   NULL
 );
+xTaskCreate(
+  tarefa_4,
+  "Salvar Valores",
+  8000,
+  NULL,
+  3,
+  NULL
+);
 
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
+  vTaskDelay(15);
 
 }
 
@@ -88,6 +99,7 @@ void tarefa_1(void * parameters)
   my_sensor.begin();
   volatile float temp_sum = 0;
   volatile int temp_ind = 0;
+  sem_media = xSemaphoreCreateBinary();
 	for(;;)
 	{
 		temperature = my_sensor.readTemperature();
@@ -99,10 +111,11 @@ void tarefa_1(void * parameters)
 			temp_med = temp_sum/temp_ind;
 			temp_ind = 0;
 			temp_sum = 0;
+      xSemaphoreGive(sem_media);
     Serial.print("Temperatura Media: ");
     Serial.println(temp_med);
 		} 
-		vTaskDelay(2000);
+		vTaskDelay(1900);
 	}
 }
 
@@ -111,7 +124,7 @@ void tarefa_2(void * parameters){
   for(;;){
 		if(WiFi.status() == WL_CONNECTED){
       Serial.println("[WIFI] Still Connected");
-			vTaskDelay(20000 / portTICK_PERIOD_MS);
+			vTaskDelay(31000 / portTICK_PERIOD_MS);
 			continue;
 		}
 		Serial.println("WiFI Connecting");
@@ -147,11 +160,16 @@ void tarefa_3(void * parameters){
               client.println("HTTP/1.1 200 OK");
               client.println("Content-type:text/html");
               client.println();
-              client.print("Click <a href=\"/H\">here</a> to turn the LED on pin 2 on.<br>");
-              client.print("Click <a href=\"/L\">here</a> to turn the LED on pin 2 off.<br>");
+              client.println("<!DOCTYPE HTML>");
+              client.println("<html>");
+              client.println("<meta http-equiv=\"refresh\" content=\"2\" >");
+              client.print(temperature);
+              client.println("<br />");
               client.println();
+              client.println("</html>");
               break;
-            } else {
+            }
+            else {
               currentLine = "";
             }
           } else if (c != '\r') {
@@ -170,4 +188,33 @@ void tarefa_3(void * parameters){
     }
 
   }
+}
+
+void tarefa_4(void * parameters){
+
+  if(SPIFFS.begin()){
+    Serial.println("Montou");
+  }
+  else{
+      Serial.println("Erro de mount");
+    }
+  
+
+  volatile int tempo = 0; // tempo que foi retirado o dado
+  File file;
+  
+  for(;;){
+      if(xSemaphoreTake(sem_media, portMAX_DELAY)){
+        Serial.println("Entrei na tarefa de gravacao");
+        file = SPIFFS.open("/media.txt", "a");
+        file.print("[");
+        file.print(tempo);
+        file.print("]");
+        file.println(temp_med);
+        file.close();
+        tempo += 20;
+
+      }
+    }
+  
 }
