@@ -35,6 +35,7 @@ void tarefa_7(void * parameters); //
 Task Handlers
 */
 xSemaphoreHandle sem_media = NULL;
+xTaskHandle save_cfg = NULL;
 
 /*
 Globals
@@ -45,6 +46,8 @@ volatile float peak_buffer = 0;
   //curvas
 volatile int curva_ind = 2;
 int get_curva(void);
+void load_cfg();
+String translate(int x);
 
 
 /*
@@ -53,6 +56,11 @@ DEFAULT FUNCTIONS
 void setup() {
   pinMode(LED, OUTPUT);
   Serial.begin(9600);
+  if(!SPIFFS.begin()){
+    Serial.println("[SPIFFS] Erro na Montagem"); 
+  }
+  Serial.println("[SPIFFS] Montado");
+  load_cfg();
 
 
   xTaskCreatePinnedToCore(
@@ -60,7 +68,7 @@ void setup() {
     "get_temperature", // nome humano
     1000, // tamanho da pilha
     NULL, // parameters
-    5,  //prioridade
+    6,  //prioridade
     NULL, // handle
     1
   );
@@ -87,7 +95,7 @@ xTaskCreate(
   "Salvar Valores",
   8000,
   NULL,
-  3,
+  4,
   NULL
 );
 xTaskCreatePinnedToCore(
@@ -95,9 +103,17 @@ xTaskCreatePinnedToCore(
   "Atualiza PWM",
   1000,
   NULL,
-  4,
+  5,
   NULL,
   1
+);
+xTaskCreate(
+  tarefa_6,
+  "Salva Cfg",
+  5000,
+  NULL,
+  3,
+  &save_cfg
 );
 
 }
@@ -203,6 +219,7 @@ void tarefa_3(void * parameters){
               client.print("Click <a href=\"/L\">MINIMUM</a> para ligar os Ventiladores com baixa rotacao.<br>");
               client.print("Click <a href=\"/M\">GRADUAL</a> para os Ventiladores acelerarem conforme a temperatura.<br>");
               client.print("Click <a href=\"/H\">MAX</a> para ligar os Ventiladores com rotacao maxima.<br>");
+              client.print("Click <a href=\"/S\">SAVE Cfg</a> para salvar a configuracao.<br>");
               client.println();
               client.println("</html>");
               break;
@@ -226,6 +243,9 @@ void tarefa_3(void * parameters){
           if (currentLine.endsWith("GET /H")) {
             curva_ind = 3;
           }
+          if (currentLine.endsWith("GET /S")) {
+            vTaskResume(save_cfg);
+          }
         }
       }
       client.stop();
@@ -236,12 +256,6 @@ void tarefa_3(void * parameters){
 }
 
 void tarefa_4(void * parameters){
-
-  if(!SPIFFS.begin()){
-    Serial.println("[SPIFFS] Erro na Montagem"); 
-  }
-  Serial.println("[SPIFFS] Montado");
-  
 
   volatile int tempo = 0;         // tempo de execucao que foi obtido o dado (min)
   File file;
@@ -287,6 +301,25 @@ void tarefa_5(void * parameters){
 }
 
 
+void tarefa_6(void * parameters){
+  File file;
+  String s;
+  for(;;){
+    vTaskSuspend(NULL);
+    s = translate(curva_ind);
+    Serial.println("Conferindo o q sera salvo");
+    Serial.println(s);
+    Serial.println("[SPIFFS] Gravando Cfg...");
+    if(file = SPIFFS.open("/cfg.txt", "w")){        //Grava [0]24.45 ... 
+          file.println(s);
+          file.close();
+          Serial.println("[SPIFFS] Gravacao Cgf Concluida");
+        }
+        else{Serial.println("[SPIFFS] Erro na abertura do arquivo Cfg");}
+  }
+}
+
+
 
 int get_curva(void){
   switch (curva_ind)
@@ -309,6 +342,42 @@ int get_curva(void){
     return 255;
   default:
     return 255;
+    break;
+  }
+}
+
+void load_cfg(){
+  File file;
+  String s;
+  Serial.println("[SPIFFS] Carregando Cfg...");
+    if(file = SPIFFS.open("/cfg.txt", "r")){      
+          file.seek(0, SeekSet);
+          s = file.readStringUntil('\n');
+          curva_ind = s.toInt();
+          file.close();
+          Serial.println("[SPIFFS] Carregamento Cgf Concluido");
+          Serial.println(curva_ind);
+        }
+        else{Serial.println("[SPIFFS] Erro na abertura do arquivo Cfg");}
+}
+
+String translate(int x){
+  switch (x){
+    case 0:
+      return "0";
+    break;
+    case 1:
+      return "1";
+    break;
+    case 2:
+      return "2";
+    break;
+    case 3:
+      return "3";
+    break;
+    default:
+      Serial.println("[TRANSLATE]Erro na conversao");
+      return "2";
     break;
   }
 }
