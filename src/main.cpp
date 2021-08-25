@@ -25,6 +25,7 @@ void tarefa_1(void * parameters); //Ler temperatura
 void tarefa_2(void * parameters); //Conectar e Manter WIFI
 void tarefa_3(void * parameters); // Web Server
 void tarefa_4(void * parameters); // Salvar as medias, semaforo
+void tarefa_5(void * parameters); // Atualiza PWM
 /*
 Task Handlers
 */
@@ -35,6 +36,7 @@ Globals
 */
 volatile float temperature;
 volatile float temp_med = 0;
+volatile float peak_buffer = 0;
 
 /*
 DEFAULT FUNCTIONS
@@ -96,6 +98,7 @@ void tarefa_1(void * parameters)
 {
   my_sensor.begin();
   volatile float temp_sum = 0;
+  volatile float temp_peak = 0;
   volatile int temp_ind = 0;
   sem_media = xSemaphoreCreateBinary();
 
@@ -104,10 +107,15 @@ void tarefa_1(void * parameters)
 		temperature = my_sensor.readTemperature();        // Leitura do Sensor
 		temp_ind ++;
 		temp_sum = temp_sum + temperature;                // Soma 631 temps (20min)
+    if(temperature > temp_peak){                      // Temperatura de Pico (20m)
+      temp_peak = temperature;
+    }
     Serial.print("Temperatura: ");
     Serial.println(temperature);
-		if(temp_ind == 631){
+		if(temp_ind == 6){
 			temp_med = temp_sum/temp_ind;                   // Media de temperatura a cada 20m (631*1.9s)
+      peak_buffer = temp_peak;                       // Carrega o buffer da temperatura de pico
+      temp_peak = 0;
 			temp_ind = 0;
 			temp_sum = 0;
       xSemaphoreGive(sem_media);                      // Libera para a funcao que grava
@@ -209,7 +217,9 @@ void tarefa_4(void * parameters){
           file.print("[");
           file.print(tempo);
           file.print("]");
-          file.println(temp_med);
+          file.print(temp_med);
+          file.print("-");
+          file.println(peak_buffer);
           file.close();
           Serial.println("Gravacao Concluida");
         }
